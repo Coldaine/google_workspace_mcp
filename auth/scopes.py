@@ -60,6 +60,13 @@ TASKS_READONLY_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly'
 # Google Custom Search API scope
 CUSTOM_SEARCH_SCOPE = 'https://www.googleapis.com/auth/cse'
 
+# Google Apps Script API scopes
+SCRIPT_PROJECTS_SCOPE = 'https://www.googleapis.com/auth/script.projects'
+SCRIPT_DEPLOYMENTS_SCOPE = 'https://www.googleapis.com/auth/script.deployments'
+SCRIPT_DEPLOYMENTS_READONLY_SCOPE = 'https://www.googleapis.com/auth/script.deployments.readonly'
+SCRIPT_METRICS_SCOPE = 'https://www.googleapis.com/auth/script.metrics'
+SCRIPT_PROCESSES_SCOPE = 'https://www.googleapis.com/auth/script.processes'
+
 # Base OAuth scopes required for user identification
 BASE_SCOPES = [
     USERINFO_EMAIL_SCOPE,
@@ -124,6 +131,14 @@ CUSTOM_SEARCH_SCOPES = [
     CUSTOM_SEARCH_SCOPE
 ]
 
+SCRIPT_SCOPES = [
+    SCRIPT_PROJECTS_SCOPE,
+    SCRIPT_DEPLOYMENTS_SCOPE,
+    SCRIPT_DEPLOYMENTS_READONLY_SCOPE,
+    SCRIPT_METRICS_SCOPE,
+    SCRIPT_PROCESSES_SCOPE
+]
+
 # Tool-to-scopes mapping
 TOOL_SCOPES_MAP = {
     'gmail': GMAIL_SCOPES,
@@ -135,7 +150,8 @@ TOOL_SCOPES_MAP = {
     'forms': FORMS_SCOPES,
     'slides': SLIDES_SCOPES,
     'tasks': TASKS_SCOPES,
-    'search': CUSTOM_SEARCH_SCOPES
+    'search': CUSTOM_SEARCH_SCOPES,
+    'script': SCRIPT_SCOPES
 }
 
 def set_enabled_tools(enabled_tools):

@@ -41,6 +41,11 @@ from auth.scopes import (
     TASKS_SCOPE,
     TASKS_READONLY_SCOPE,
     CUSTOM_SEARCH_SCOPE,
+    SCRIPT_PROJECTS_SCOPE,
+    SCRIPT_DEPLOYMENTS_SCOPE,
+    SCRIPT_DEPLOYMENTS_READONLY_SCOPE,
+    SCRIPT_METRICS_SCOPE,
+    SCRIPT_PROCESSES_SCOPE,
 )
 
 logger = logging.getLogger(__name__)
@@ -381,6 +386,7 @@ SERVICE_CONFIGS = {
     "slides": {"service": "slides", "version": "v1"},
     "tasks": {"service": "tasks", "version": "v1"},
     "customsearch": {"service": "customsearch", "version": "v1"},
+    "script": {"service": "script", "version": "v1"},
 }
 
 
@@ -420,6 +426,12 @@ SCOPE_GROUPS = {
     "tasks_read": TASKS_READONLY_SCOPE,
     # Custom Search scope
     "customsearch": CUSTOM_SEARCH_SCOPE,
+    # Apps Script scopes
+    "script_projects": SCRIPT_PROJECTS_SCOPE,
+    "script_deployments": SCRIPT_DEPLOYMENTS_SCOPE,
+    "script_deployments_read": SCRIPT_DEPLOYMENTS_READONLY_SCOPE,
+    "script_metrics": SCRIPT_METRICS_SCOPE,
+    "script_processes": SCRIPT_PROCESSES_SCOPE,
 }
 
 
