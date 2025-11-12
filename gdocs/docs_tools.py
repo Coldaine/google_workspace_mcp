@@ -581,8 +581,8 @@ async def insert_doc_elements(
     text: Optional[str] = None,
     # Parameters for image operation
     image_source: Optional[str] = None,
-    width: int = 0,
-    height: int = 0,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
     # Parameters for table operation
     table_data: Optional[List[List[str]]] = None,
     bold_headers: bool = True,
@@ -607,8 +607,8 @@ async def insert_doc_elements(
         
         # image operation parameters:
         image_source (Optional[str]): Drive file ID or public image URL
-        width (int): Image width in points (default: 0 for auto)
-        height (int): Image height in points (default: 0 for auto)
+        width (Optional[int]): Image width in points (optional, None for auto-size)
+        height (Optional[int]): Image height in points (optional, None for auto-size)
         
         # table operation parameters:
         table_data (Optional[List[List[str]]]): 2D list of strings for table data
@@ -660,10 +660,11 @@ async def insert_doc_elements(
                 if not text:
                     text = "List item"
 
-                # Insert text first, then create list
+                # Insert text with newline, then create list
+                # The range must include the newline for the bullet list to work
                 requests.extend([
                     create_insert_text_request(index, text + '\n'),
-                    create_bullet_list_request(index, index + len(text), list_type)
+                    create_bullet_list_request(index, index + len(text) + 1, list_type)  # +1 for newline
                 ])
                 description = f"{list_type.lower()} list"
 
@@ -790,7 +791,7 @@ async def insert_doc_elements(
 @server.tool()
 @handle_http_errors("manage_doc_operations", service_type="docs")
 @require_multiple_services([
-    {"service_type": "docs", "scopes": "docs_read", "param_name": "docs_service"},
+    {"service_type": "docs", "scopes": "docs_write", "param_name": "docs_service"},
     {"service_type": "drive", "scopes": "drive_file", "param_name": "drive_service"}
 ])
 async def manage_doc_operations(
