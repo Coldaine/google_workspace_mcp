@@ -1,0 +1,29 @@
+📋 **Consolidation Plan - Strategic Recommendations**
+
+After reviewing CONSOLIDATION_PLAN.md, here's a suggested prioritization for Phase 2:
+
+**Priority 1: Google Docs (14 → 7 tools, -7 tools)**
+- Largest impact on tool count
+- Complex operations that would benefit from consolidation
+- Suggested grouping:
+  - manage_document: create, get, copy
+  - edit_document_content: insert_text, replace_text, delete_text
+  - manage_document_structure: headers, footers, sections
+  - manage_tables: CRUD operations
+  - Keep separate: batch_update, get_selection_content (special operations)
+
+**Priority 2: Google Drive (6 → 4 tools, -2 tools)**
+- Simpler consolidation
+- Good for validating patterns from Docs work
+- Suggested grouping:
+  - manage_drive_file: create, get, update, delete, list
+  - manage_drive_permissions: share, list_permissions
+  - drive_operations: move, copy, download, upload
+
+**Priority 3: Google Sheets (6 → 4 tools, -2 tools)**
+- Similar to Drive in complexity
+- Suggested grouping:
+  - manage_sheet_data: read, write, append, batch
+  - manage_sheet_structure: formatting, protection
+
+This will accelerate future consolidations!
