@@ -29,6 +29,8 @@ async def search_custom(
     search_type: Optional[Literal["image"]] = None,
     site_search: Optional[str] = None,
     site_search_filter: Optional[Literal["e", "i"]] = None,
+    site_restrict: bool = False,
+    sites: Optional[List[str]] = None,
     date_restrict: Optional[str] = None,
     file_type: Optional[str] = None,
     language: Optional[str] = None,
@@ -44,12 +46,19 @@ async def search_custom(
         start (int): The index of the first result to return (1-based). Defaults to 1.
         safe (Literal["active", "moderate", "off"]): Safe search level. Defaults to "off".
         search_type (Optional[Literal["image"]]): Search for images if set to "image".
-        site_search (Optional[str]): Restrict search to a specific site/domain.
+        site_search (Optional[str]): Restrict search to a specific site/domain (standard API).
         site_search_filter (Optional[Literal["e", "i"]]): Exclude ("e") or include ("i") site_search results.
+        site_restrict (bool): If True, perform a site-restricted search using provided `sites` list.
+        sites (Optional[List[str]]): List of domains for site-restricted search; required when site_restrict=True.
         date_restrict (Optional[str]): Restrict results by date (e.g., "d5" for past 5 days, "m3" for past 3 months).
         file_type (Optional[str]): Filter by file type (e.g., "pdf", "doc").
         language (Optional[str]): Language code for results (e.g., "lang_en").
         country (Optional[str]): Country code for results (e.g., "countryUS").
+    
+    Examples:
+        - search_custom(..., q="workspace mcp", num=5)
+        - search_custom(..., q="charts", site_restrict=True, sites=["developers.google.com", "support.google.com"])
+        - search_custom(..., q="reports", site_search="example.com", site_search_filter="i")
 
     Returns:
         str: Formatted search results including title, link, and snippet for each result.
@@ -63,7 +72,7 @@ async def search_custom(
     if not cx:
         raise ValueError("GOOGLE_PSE_ENGINE_ID environment variable not set. Please set it to your Programmable Search Engine ID.")
 
-    logger.info(f"[search_custom] Invoked. Email: '{user_google_email}', Query: '{q}', CX: '{cx}'")
+    logger.info(f"[search_custom] Invoked. Email: '{user_google_email}', Query: '{q}', CX: '{cx}', site_restrict={site_restrict}")
 
     # Build the request parameters
     params = {
@@ -78,10 +87,16 @@ async def search_custom(
     # Add optional parameters
     if search_type:
         params['searchType'] = search_type
-    if site_search:
-        params['siteSearch'] = site_search
-    if site_search_filter:
-        params['siteSearchFilter'] = site_search_filter
+    if site_restrict:
+        if not sites:
+            raise ValueError("When site_restrict is True, provide a non-empty 'sites' list.")
+        site_query = " OR ".join([f"site:{site}" for site in sites])
+        params['q'] = f"{q} ({site_query})"
+    else:
+        if site_search:
+            params['siteSearch'] = site_search
+        if site_search_filter:
+            params['siteSearchFilter'] = site_search_filter
     if date_restrict:
         params['dateRestrict'] = date_restrict
     if file_type:
@@ -213,46 +228,3 @@ async def get_search_engine_info(
 
     logger.info(f"Search engine info retrieved successfully for {user_google_email}")
     return confirmation_message
-
-
-@server.tool()
-@handle_http_errors("search_custom_siterestrict", is_read_only=True, service_type="customsearch")
-@require_google_service("customsearch", "customsearch")
-async def search_custom_siterestrict(
-    service,
-    user_google_email: str,
-    q: str,
-    sites: List[str],
-    num: int = 10,
-    start: int = 1,
-    safe: Literal["active", "moderate", "off"] = "off"
-) -> str:
-    """
-    Performs a search restricted to specific sites using Google Custom Search.
-
-    Args:
-        user_google_email (str): The user's Google email address. Required.
-        q (str): The search query. Required.
-        sites (List[str]): List of sites/domains to search within.
-        num (int): Number of results to return (1-10). Defaults to 10.
-        start (int): The index of the first result to return (1-based). Defaults to 1.
-        safe (Literal["active", "moderate", "off"]): Safe search level. Defaults to "off".
-
-    Returns:
-        str: Formatted search results from the specified sites.
-    """
-    logger.info(f"[search_custom_siterestrict] Invoked. Email: '{user_google_email}', Query: '{q}', Sites: {sites}")
-
-    # Build site restriction query
-    site_query = " OR ".join([f"site:{site}" for site in sites])
-    full_query = f"{q} ({site_query})"
-
-    # Use the main search function with the modified query
-    return await search_custom(
-        service=service,
-        user_google_email=user_google_email,
-        q=full_query,
-        num=num,
-        start=start,
-        safe=safe
-    )

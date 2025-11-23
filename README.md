@@ -117,18 +117,10 @@ export GOOGLE_OAUTH_CLIENT_SECRET="..."
 
 **▶ Launch Commands**
 ```bash
-uvx workspace-mcp --tool-tier core
+uvx workspace-mcp
 uv run main.py --tools gmail drive
 ```
 [More options →](#start-the-server)
-
-</td><td width="34%" valign="top">
-
-**★ Tool Tiers**
-- ● `core` - Essential tools
-- ◐ `extended` - Core + extras
-- ○ `complete` - Everything
-[Details →](#tool-tiers)
 
 </td></tr>
 </table>
@@ -585,13 +577,6 @@ uv run main.py --tools sheets docs
 uv run main.py --single-user --tools gmail
 ```
 
-**★ Tool Tiers**
-```bash
-uv run main.py --tool-tier core      # ● Essential tools only
-uv run main.py --tool-tier extended  # ◐ Core + additional
-uv run main.py --tool-tier complete  # ○ All available tools
-```
-
 **◆ Docker Deployment**
 ```bash
 docker build -t workspace-mcp .
@@ -599,7 +584,6 @@ docker run -p 8000:8000 -v $(pwd):/app \
   workspace-mcp --transport streamable-http
 
 # With tool selection via environment variables
-docker run -e TOOL_TIER=core workspace-mcp
 docker run -e TOOLS="gmail drive calendar" workspace-mcp
 ```
 
@@ -612,54 +596,6 @@ docker run -e TOOLS="gmail drive calendar" workspace-mcp
 </table>
 
 </details>
-
-### Tool Tiers
-
-The server organizes tools into **three progressive tiers** for simplified deployment. Choose a tier that matches your usage needs and API quota requirements.
-
-<table>
-<tr>
-<td width="65%" valign="top">
-
-#### <span style="color:#72898f">Available Tiers</span>
-
-**<span style="color:#2d5b69">●</span> Core** (`--tool-tier core`)
-Essential tools for everyday tasks. Perfect for light usage with minimal API quotas. Includes search, read, create, and basic modify operations across all services.
-
-**<span style="color:#72898f">●</span> Extended** (`--tool-tier extended`)
-Core functionality plus management tools. Adds labels, folders, batch operations, and advanced search. Ideal for regular usage with moderate API needs.
-
-**<span style="color:#adbcbc">●</span> Complete** (`--tool-tier complete`)
-Full API access including comments, headers/footers, publishing settings, and administrative functions. For power users needing maximum functionality.
-
-</td>
-<td width="35%" valign="top">
-
-#### <span style="color:#72898f">Important Notes</span>
-
-<span style="color:#72898f">▶</span> **Start with `core`** and upgrade as needed
-<span style="color:#72898f">▶</span> **Tiers are cumulative** – each includes all previous
-<span style="color:#72898f">▶</span> **Mix and match** with `--tools` for specific services
-<span style="color:#72898f">▶</span> **Configuration** in `core/tool_tiers.yaml`
-<span style="color:#72898f">▶</span> **Authentication** included in all tiers
-
-</td>
-</tr>
-</table>
-
-#### <span style="color:#72898f">Usage Examples</span>
-
-```bash
-# Basic tier selection
-uv run main.py --tool-tier core                            # Start with essential tools only
-uv run main.py --tool-tier extended                        # Expand to include management features
-uv run main.py --tool-tier complete                        # Enable all available functionality
-
-# Selective service loading with tiers
-uv run main.py --tools gmail drive --tool-tier core        # Core tools for specific services
-uv run main.py --tools gmail --tool-tier extended          # Extended Gmail functionality only
-uv run main.py --tools docs sheets --tool-tier complete    # Full access to Docs and Sheets
-```
 
 ## 📋 Credential Configuration
 
@@ -757,12 +693,12 @@ cp .env.oauth21 .env
 
 ### 📁 **Google Drive** <sub>[`drive_tools.py`](gdrive/drive_tools.py)</sub>
 
-| Tool | Tier | Description |
-|------|------|-------------|
-| `search_drive_files` | **Core** | Search files with query syntax |
-| `get_drive_file_content` | **Core** | Read file content (Office formats) |
-| `list_drive_items` | Extended | List folder contents |
-| `create_drive_file` | **Core** | Create files or fetch from URLs |
+| Tool | Description |
+|------|-------------|
+| `manage_drive_file` | Create, update, delete, move, copy, trash files |
+| `manage_drive_permissions` | Manage file permissions (share/unshare) |
+| `search_drive_files` | Search files with query syntax |
+| `get_drive_file_content` | Read file content (Office formats) |
 
 </td>
 </tr>

@@ -8,7 +8,7 @@ Consolidated from 12 tools to 3 tools for improved organization.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, TypedDict, Union
 
 from googleapiclient.errors import HttpError  # type: ignore
 from mcp import Resource
@@ -320,69 +320,82 @@ async def manage_task_list(
         raise Exception(message)
 
 
+class TaskListOptionalFields(TypedDict, total=False):
+    task_id: Optional[str]
+    max_results: Optional[int]
+    page_token: Optional[str]
+    show_completed: Optional[bool]
+    show_deleted: Optional[bool]
+    show_hidden: Optional[bool]
+    show_assigned: Optional[bool]
+    completed_max: Optional[str]
+    completed_min: Optional[str]
+    due_max: Optional[str]
+    due_min: Optional[str]
+    updated_min: Optional[str]
+
+
+class TaskListPayload(TaskListOptionalFields):
+    operation: Literal["list", "get"]
+
+
+class TaskMutateOptionalFields(TypedDict, total=False):
+    task_id: Optional[str]
+    title: Optional[str]
+    notes: Optional[str]
+    status: Optional[str]
+    due: Optional[str]
+    parent: Optional[str]
+    previous: Optional[str]
+    destination_task_list: Optional[str]
+
+
+class TaskMutatePayload(TaskMutateOptionalFields):
+    operation: Literal["create", "update", "delete", "move"]
+
+TaskPayload = Union[TaskListPayload, TaskMutatePayload]
+
+
 @server.tool()  # type: ignore
 @require_google_service("tasks", ["tasks_read", "tasks"])  # type: ignore
 @handle_http_errors("manage_task", service_type="tasks")  # type: ignore
 async def manage_task(
     service: Resource,
     user_google_email: str,
-    operation: Literal["list", "get", "create", "update", "delete", "move"],
     task_list_id: str,
-    task_id: Optional[str] = None,
-    title: Optional[str] = None,
-    notes: Optional[str] = None,
-    status: Optional[str] = None,
-    due: Optional[str] = None,
-    parent: Optional[str] = None,
-    previous: Optional[str] = None,
-    destination_task_list: Optional[str] = None,
-    # List operation parameters
-    max_results: int = LIST_TASKS_MAX_RESULTS_DEFAULT,
-    page_token: Optional[str] = None,
-    show_completed: bool = True,
-    show_deleted: bool = False,
-    show_hidden: bool = False,
-    show_assigned: bool = False,
-    completed_max: Optional[str] = None,
-    completed_min: Optional[str] = None,
-    due_max: Optional[str] = None,
-    due_min: Optional[str] = None,
-    updated_min: Optional[str] = None,
+    payload: TaskPayload,
 ) -> str:
     """
     Manage tasks in Google Task lists: list, get, create, update, delete, or move tasks.
 
     Args:
         user_google_email (str): The user's Google email address. Required.
-        operation (str): Operation: "list", "get", "create", "update", "delete", "move".
         task_list_id (str): Task list ID. Required.
-        task_id (Optional[str]): Task ID (required for get, update, delete, move).
-        title (Optional[str]): Task title (required for create, optional for update).
-        notes (Optional[str]): Task notes/description.
-        status (Optional[str]): Task status ("needsAction" or "completed").
-        due (Optional[str]): Due date in RFC 3339 format (e.g., "2024-12-31T23:59:59Z").
-        parent (Optional[str]): Parent task ID (for subtasks or move operation).
-        previous (Optional[str]): Previous sibling task ID (for positioning).
-        destination_task_list (Optional[str]): Destination task list ID (for move between lists).
-        max_results (int): Maximum tasks to return for list (default: 20, max: 10000).
-        page_token (Optional[str]): Pagination token for list.
-        show_completed (bool): Include completed tasks in list (default: True).
-        show_deleted (bool): Include deleted tasks in list (default: False).
-        show_hidden (bool): Include hidden tasks in list (default: False).
-        show_assigned (bool): Include assigned tasks in list (default: False).
-        completed_max (Optional[str]): Upper bound for completion date (RFC 3339).
-        completed_min (Optional[str]): Lower bound for completion date (RFC 3339).
-        due_max (Optional[str]): Upper bound for due date (RFC 3339).
-        due_min (Optional[str]): Lower bound for due date (RFC 3339).
-        updated_min (Optional[str]): Lower bound for last modification time (RFC 3339).
+        payload (TaskPayload): Operation-specific parameters.
+            - list/get: List tasks or get a specific task.
+            - create/update/delete/move: Modify or move tasks.
 
     Returns:
         str: Result of the operation with task details.
     """
+    operation = payload["operation"]
     logger.info(f"[manage_task] Operation: {operation}, Email: '{user_google_email}', Task List: {task_list_id}")
 
     try:
         if operation == "list":
+            p = payload  # type: ignore
+            max_results = p.get("max_results", LIST_TASKS_MAX_RESULTS_DEFAULT)
+            page_token = p.get("page_token")
+            show_completed = p.get("show_completed", True)
+            show_deleted = p.get("show_deleted", False)
+            show_hidden = p.get("show_hidden", False)
+            show_assigned = p.get("show_assigned", False)
+            completed_max = p.get("completed_max")
+            completed_min = p.get("completed_min")
+            due_max = p.get("due_max")
+            due_min = p.get("due_min")
+            updated_min = p.get("updated_min")
+
             params: Dict[str, Any] = {"tasklist": task_list_id}
             if max_results is not None:
                 params["maxResults"] = max_results
@@ -454,6 +467,8 @@ async def manage_task(
             return response
 
         elif operation == "get":
+            p = payload  # type: ignore
+            task_id = p.get("task_id")
             if not task_id:
                 raise ValueError("'task_id' is required for get operation")
 
@@ -486,6 +501,13 @@ async def manage_task(
             return response
 
         elif operation == "create":
+            p = payload  # type: ignore
+            title = p.get("title")
+            notes = p.get("notes")
+            due = p.get("due")
+            parent = p.get("parent")
+            previous = p.get("previous")
+
             if not title:
                 raise ValueError("'title' is required for create operation")
 
@@ -522,6 +544,13 @@ async def manage_task(
             return response
 
         elif operation == "update":
+            p = payload  # type: ignore
+            task_id = p.get("task_id")
+            title = p.get("title")
+            status = p.get("status")
+            notes = p.get("notes")
+            due = p.get("due")
+
             if not task_id:
                 raise ValueError("'task_id' is required for update operation")
 
@@ -567,6 +596,8 @@ async def manage_task(
             return response
 
         elif operation == "delete":
+            p = payload  # type: ignore
+            task_id = p.get("task_id")
             if not task_id:
                 raise ValueError("'task_id' is required for delete operation")
 
@@ -580,6 +611,12 @@ async def manage_task(
             return response
 
         elif operation == "move":
+            p = payload  # type: ignore
+            task_id = p.get("task_id")
+            parent = p.get("parent")
+            previous = p.get("previous")
+            destination_task_list = p.get("destination_task_list")
+
             if not task_id:
                 raise ValueError("'task_id' is required for move operation")
 

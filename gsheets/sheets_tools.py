@@ -7,10 +7,10 @@ This module provides MCP tools for interacting with Google Sheets API.
 import logging
 import asyncio
 import json
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 
-from auth.service_decorator import require_google_service
+from auth.service_decorator import require_google_service, require_multiple_services
 from core.server import server
 from core.utils import handle_http_errors
 from core.comments import create_comment_tools
@@ -20,104 +20,95 @@ logger = logging.getLogger(__name__)
 
 
 @server.tool()
-@handle_http_errors("list_spreadsheets", is_read_only=True, service_type="sheets")
-@require_google_service("drive", "drive_read")
-async def list_spreadsheets(
-    service,
+@handle_http_errors("get_spreadsheet_info", is_read_only=True, service_type="sheets")
+@require_multiple_services([
+    {"service_type": "drive", "scopes": "drive_read", "param_name": "drive_service"},
+    {"service_type": "sheets", "scopes": "sheets_read", "param_name": "sheets_service"},
+])
+async def get_spreadsheet_info(
+    drive_service,
+    sheets_service,
     user_google_email: str,
+    operation: Literal["get", "list"],
+    spreadsheet_id: Optional[str] = None,
     max_results: int = 25,
 ) -> str:
     """
-    Lists spreadsheets from Google Drive that the user has access to.
+    Retrieve spreadsheet metadata or list available spreadsheets.
 
-    Args:
-        user_google_email (str): The user's Google email address. Required.
-        max_results (int): Maximum number of spreadsheets to return. Defaults to 25.
-
-    Returns:
-        str: A formatted list of spreadsheet files (name, ID, modified time).
+    operation: Literal["get", "list"]
+    - get: Return sheet names and sizes for a spreadsheet (requires spreadsheet_id).
+    - list: List accessible spreadsheets from Drive (uses Drive API, respects shared drives).
+    
+    Examples:
+    - get_spreadsheet_info(..., operation="list", max_results=10)
+    - get_spreadsheet_info(..., operation="get", spreadsheet_id="abc123")
     """
-    logger.info(f"[list_spreadsheets] Invoked. Email: '{user_google_email}'")
-
-    files_response = await asyncio.to_thread(
-        service.files()
-        .list(
-            q="mimeType='application/vnd.google-apps.spreadsheet'",
-            pageSize=max_results,
-            fields="files(id,name,modifiedTime,webViewLink)",
-            orderBy="modifiedTime desc",
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True,
-        )
-        .execute
+    logger.info(
+        f"[get_spreadsheet_info] Operation={operation}, Spreadsheet ID={spreadsheet_id}, Max={max_results}"
     )
 
-    files = files_response.get("files", [])
-    if not files:
-        return f"No spreadsheets found for {user_google_email}."
-
-    spreadsheets_list = [
-        f"- \"{file['name']}\" (ID: {file['id']}) | Modified: {file.get('modifiedTime', 'Unknown')} | Link: {file.get('webViewLink', 'No link')}"
-        for file in files
-    ]
-
-    text_output = (
-        f"Successfully listed {len(files)} spreadsheets for {user_google_email}:\n"
-        + "\n".join(spreadsheets_list)
-    )
-
-    logger.info(f"Successfully listed {len(files)} spreadsheets for {user_google_email}.")
-    return text_output
-
-
-@server.tool()
-@handle_http_errors("get_spreadsheet_info", is_read_only=True, service_type="sheets")
-@require_google_service("sheets", "sheets_read")
-async def get_spreadsheet_info(
-    service,
-    user_google_email: str,
-    spreadsheet_id: str,
-) -> str:
-    """
-    Gets information about a specific spreadsheet including its sheets.
-
-    Args:
-        user_google_email (str): The user's Google email address. Required.
-        spreadsheet_id (str): The ID of the spreadsheet to get info for. Required.
-
-    Returns:
-        str: Formatted spreadsheet information including title and sheets list.
-    """
-    logger.info(f"[get_spreadsheet_info] Invoked. Email: '{user_google_email}', Spreadsheet ID: {spreadsheet_id}")
-
-    spreadsheet = await asyncio.to_thread(
-        service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute
-    )
-
-    title = spreadsheet.get("properties", {}).get("title", "Unknown")
-    sheets = spreadsheet.get("sheets", [])
-
-    sheets_info = []
-    for sheet in sheets:
-        sheet_props = sheet.get("properties", {})
-        sheet_name = sheet_props.get("title", "Unknown")
-        sheet_id = sheet_props.get("sheetId", "Unknown")
-        grid_props = sheet_props.get("gridProperties", {})
-        rows = grid_props.get("rowCount", "Unknown")
-        cols = grid_props.get("columnCount", "Unknown")
-
-        sheets_info.append(
-            f"  - \"{sheet_name}\" (ID: {sheet_id}) | Size: {rows}x{cols}"
+    if operation == "list":
+        files_response = await asyncio.to_thread(
+            drive_service.files()
+            .list(
+                q="mimeType='application/vnd.google-apps.spreadsheet'",
+                pageSize=max_results,
+                fields="files(id,name,modifiedTime,webViewLink)",
+                orderBy="modifiedTime desc",
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
+            )
+            .execute
         )
 
-    text_output = (
-        f"Spreadsheet: \"{title}\" (ID: {spreadsheet_id})\n"
-        f"Sheets ({len(sheets)}):\n"
-        + "\n".join(sheets_info) if sheets_info else "  No sheets found"
-    )
+        files = files_response.get("files", [])
+        if not files:
+            return f"No spreadsheets found for {user_google_email}."
 
-    logger.info(f"Successfully retrieved info for spreadsheet {spreadsheet_id} for {user_google_email}.")
-    return text_output
+        spreadsheets_list = [
+            f"- \"{file['name']}\" (ID: {file['id']}) | Modified: {file.get('modifiedTime', 'Unknown')} | Link: {file.get('webViewLink', 'No link')}"
+            for file in files
+        ]
+
+        logger.info(f"Successfully listed {len(files)} spreadsheets for {user_google_email}.")
+        return (
+            f"Successfully listed {len(files)} spreadsheets for {user_google_email}:\n"
+            + "\n".join(spreadsheets_list)
+        )
+
+    if operation == "get":
+        if not spreadsheet_id:
+            raise Exception("Operation 'get' requires 'spreadsheet_id'.")
+
+        spreadsheet = await asyncio.to_thread(
+            sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute
+        )
+
+        title = spreadsheet.get("properties", {}).get("title", "Unknown")
+        sheets = spreadsheet.get("sheets", [])
+
+        sheets_info = []
+        for sheet in sheets:
+            sheet_props = sheet.get("properties", {})
+            sheet_name = sheet_props.get("title", "Unknown")
+            sheet_id = sheet_props.get("sheetId", "Unknown")
+            grid_props = sheet_props.get("gridProperties", {})
+            rows = grid_props.get("rowCount", "Unknown")
+            cols = grid_props.get("columnCount", "Unknown")
+
+            sheets_info.append(
+                f"  - \"{sheet_name}\" (ID: {sheet_id}) | Size: {rows}x{cols}"
+            )
+
+        logger.info(f"Successfully retrieved info for spreadsheet {spreadsheet_id} for {user_google_email}.")
+        return (
+            f"Spreadsheet: \"{title}\" (ID: {spreadsheet_id})\n"
+            f"Sheets ({len(sheets)}):\n"
+            + ("\n".join(sheets_info) if sheets_info else "  No sheets found")
+        )
+
+    raise Exception("Unsupported operation. Use 'get' or 'list'.")
 
 
 @server.tool()
@@ -264,97 +255,85 @@ async def modify_sheet_values(
 async def create_spreadsheet(
     service,
     user_google_email: str,
-    title: str,
+    operation: Literal["create_new", "add_sheet"],
+    title: Optional[str] = None,
     sheet_names: Optional[List[str]] = None,
+    spreadsheet_id: Optional[str] = None,
+    sheet_name: Optional[str] = None,
 ) -> str:
     """
-    Creates a new Google Spreadsheet.
+    Create a spreadsheet or add a sheet to an existing one.
 
-    Args:
-        user_google_email (str): The user's Google email address. Required.
-        title (str): The title of the new spreadsheet. Required.
-        sheet_names (Optional[List[str]]): List of sheet names to create. If not provided, creates one sheet with default name.
-
-    Returns:
-        str: Information about the newly created spreadsheet including ID and URL.
+    operation: Literal["create_new", "add_sheet"]
+    - create_new: Make a new spreadsheet (requires title; optional sheet_names list).
+    - add_sheet: Add a sheet to an existing spreadsheet (requires spreadsheet_id and sheet_name).
+    
+    Examples:
+    - create_spreadsheet(..., operation="create_new", title="Roadmap", sheet_names=["Q1", "Q2"])
+    - create_spreadsheet(..., operation="add_sheet", spreadsheet_id="abc123", sheet_name="New Data")
     """
-    logger.info(f"[create_spreadsheet] Invoked. Email: '{user_google_email}', Title: {title}")
+    logger.info(
+        f"[create_spreadsheet] Operation={operation}, Title={title}, Spreadsheet ID={spreadsheet_id}, Sheet Name={sheet_name}"
+    )
 
-    spreadsheet_body = {
-        "properties": {
-            "title": title
+    if operation == "create_new":
+        if not title:
+            raise Exception("Operation 'create_new' requires 'title'.")
+
+        spreadsheet_body = {
+            "properties": {
+                "title": title
+            }
         }
-    }
 
-    if sheet_names:
-        spreadsheet_body["sheets"] = [
-            {"properties": {"title": sheet_name}} for sheet_name in sheet_names
-        ]
+        if sheet_names:
+            spreadsheet_body["sheets"] = [
+                {"properties": {"title": name}} for name in sheet_names
+            ]
 
-    spreadsheet = await asyncio.to_thread(
-        service.spreadsheets().create(body=spreadsheet_body).execute
-    )
+        spreadsheet = await asyncio.to_thread(
+            service.spreadsheets().create(body=spreadsheet_body).execute
+        )
 
-    spreadsheet_id = spreadsheet.get("spreadsheetId")
-    spreadsheet_url = spreadsheet.get("spreadsheetUrl")
+        spreadsheet_id = spreadsheet.get("spreadsheetId")
+        spreadsheet_url = spreadsheet.get("spreadsheetUrl")
 
-    text_output = (
-        f"Successfully created spreadsheet '{title}' for {user_google_email}. "
-        f"ID: {spreadsheet_id} | URL: {spreadsheet_url}"
-    )
+        logger.info(f"Successfully created spreadsheet for {user_google_email}. ID: {spreadsheet_id}")
+        return (
+            f"Successfully created spreadsheet '{title}' for {user_google_email}. "
+            f"ID: {spreadsheet_id} | URL: {spreadsheet_url}"
+        )
 
-    logger.info(f"Successfully created spreadsheet for {user_google_email}. ID: {spreadsheet_id}")
-    return text_output
+    if operation == "add_sheet":
+        if not spreadsheet_id or not sheet_name:
+            raise Exception("Operation 'add_sheet' requires 'spreadsheet_id' and 'sheet_name'.")
 
-
-@server.tool()
-@handle_http_errors("create_sheet", service_type="sheets")
-@require_google_service("sheets", "sheets_write")
-async def create_sheet(
-    service,
-    user_google_email: str,
-    spreadsheet_id: str,
-    sheet_name: str,
-) -> str:
-    """
-    Creates a new sheet within an existing spreadsheet.
-
-    Args:
-        user_google_email (str): The user's Google email address. Required.
-        spreadsheet_id (str): The ID of the spreadsheet. Required.
-        sheet_name (str): The name of the new sheet. Required.
-
-    Returns:
-        str: Confirmation message of the successful sheet creation.
-    """
-    logger.info(f"[create_sheet] Invoked. Email: '{user_google_email}', Spreadsheet: {spreadsheet_id}, Sheet: {sheet_name}")
-
-    request_body = {
-        "requests": [
-            {
-                "addSheet": {
-                    "properties": {
-                        "title": sheet_name
+        request_body = {
+            "requests": [
+                {
+                    "addSheet": {
+                        "properties": {
+                            "title": sheet_name
+                        }
                     }
                 }
-            }
-        ]
-    }
+            ]
+        }
 
-    response = await asyncio.to_thread(
-        service.spreadsheets()
-        .batchUpdate(spreadsheetId=spreadsheet_id, body=request_body)
-        .execute
-    )
+        response = await asyncio.to_thread(
+            service.spreadsheets()
+            .batchUpdate(spreadsheetId=spreadsheet_id, body=request_body)
+            .execute
+        )
 
-    sheet_id = response["replies"][0]["addSheet"]["properties"]["sheetId"]
+        sheet_id = response["replies"][0]["addSheet"]["properties"]["sheetId"]
 
-    text_output = (
-        f"Successfully created sheet '{sheet_name}' (ID: {sheet_id}) in spreadsheet {spreadsheet_id} for {user_google_email}."
-    )
+        logger.info(f"Successfully created sheet for {user_google_email}. Sheet ID: {sheet_id}")
+        return (
+            f"Successfully created sheet '{sheet_name}' (ID: {sheet_id}) in spreadsheet {spreadsheet_id} for {user_google_email}."
+        )
 
-    logger.info(f"Successfully created sheet for {user_google_email}. Sheet ID: {sheet_id}")
-    return text_output
+    raise Exception("Unsupported operation. Use 'create_new' or 'add_sheet'.")
 
 
 # Create comment management tools for sheets

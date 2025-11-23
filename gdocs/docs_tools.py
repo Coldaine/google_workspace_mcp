@@ -6,7 +6,7 @@ This module provides MCP tools for interacting with Google Docs API and managing
 import logging
 import asyncio
 import io
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Optional, Literal, TypedDict, Union
 
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from googleapiclient.errors import HttpError
@@ -310,6 +310,43 @@ async def create_doc(
     return msg
 
 
+class EditTextRequiredFields(TypedDict):
+    operation: Literal["edit_text"]
+    start_index: int
+
+
+class EditTextPayload(EditTextRequiredFields, total=False):
+    end_index: Optional[int]
+    text: Optional[str]
+    bold: Optional[bool]
+    italic: Optional[bool]
+    underline: Optional[bool]
+    font_size: Optional[int]
+    font_family: Optional[str]
+
+
+class FindReplaceRequiredFields(TypedDict):
+    operation: Literal["find_replace"]
+    find_text: str
+    replace_text: str
+
+
+class FindReplacePayload(FindReplaceRequiredFields, total=False):
+    match_case: bool
+
+
+class HeaderFooterRequiredFields(TypedDict):
+    operation: Literal["headers_footers"]
+    section_type: Literal["header", "footer"]
+    content: str
+
+
+class HeaderFooterPayload(HeaderFooterRequiredFields, total=False):
+    header_footer_type: Literal["DEFAULT", "FIRST_PAGE_ONLY", "EVEN_PAGE"]
+
+DocModifyPayload = Union[EditTextPayload, FindReplacePayload, HeaderFooterPayload]
+
+
 @server.tool()
 @handle_http_errors("modify_doc_content", service_type="docs")
 @require_google_service("docs", "docs_write")
@@ -317,24 +354,7 @@ async def modify_doc_content(
     service: Any,
     user_google_email: str,
     document_id: str,
-    operation: Literal["edit_text", "find_replace", "headers_footers"],
-    # Parameters for edit_text operation
-    start_index: Optional[int] = None,
-    end_index: Optional[int] = None,
-    text: Optional[str] = None,
-    bold: Optional[bool] = None,
-    italic: Optional[bool] = None,
-    underline: Optional[bool] = None,
-    font_size: Optional[int] = None,
-    font_family: Optional[str] = None,
-    # Parameters for find_replace operation
-    find_text: Optional[str] = None,
-    replace_text: Optional[str] = None,
-    match_case: bool = False,
-    # Parameters for headers_footers operation
-    section_type: Optional[str] = None,
-    content: Optional[str] = None,
-    header_footer_type: str = "DEFAULT",
+    payload: DocModifyPayload,
 ) -> str:
     """
     Modify document content through various operations.
@@ -342,45 +362,30 @@ async def modify_doc_content(
     Args:
         user_google_email (str): User's Google email address
         document_id (str): ID of the document to update
-        operation (str): Operation type: "edit_text", "find_replace", "headers_footers"
-        
-        # edit_text operation parameters:
-        start_index (Optional[int]): Start position for operation (0-based)
-        end_index (Optional[int]): End position for text replacement/formatting
-        text (Optional[str]): New text to insert or replace with
-        bold (Optional[bool]): Whether to make text bold
-        italic (Optional[bool]): Whether to make text italic
-        underline (Optional[bool]): Whether to underline text
-        font_size (Optional[int]): Font size in points
-        font_family (Optional[str]): Font family name (e.g., "Arial", "Times New Roman")
-        
-        # find_replace operation parameters:
-        find_text (Optional[str]): Text to search for
-        replace_text (Optional[str]): Text to replace with
-        match_case (bool): Whether to match case exactly (default: False)
-        
-        # headers_footers operation parameters:
-        section_type (Optional[str]): Type of section to update ("header" or "footer")
-        content (Optional[str]): Text content for the header/footer
-        header_footer_type (str): Type of header/footer ("DEFAULT", "FIRST_PAGE_ONLY", "EVEN_PAGE")
+        payload (DocModifyPayload): Operation-specific parameters.
+            - edit_text: Insert/replace text with formatting.
+            - find_replace: Find and replace text.
+            - headers_footers: Update headers and footers.
 
     Returns:
         str: Confirmation message with operation details
-        
-    Examples:
-        # Edit text with formatting
-        modify_doc_content(operation="edit_text", document_id="abc", start_index=1, text="Hello", bold=True)
-        
-        # Find and replace
-        modify_doc_content(operation="find_replace", document_id="abc", find_text="old", replace_text="new")
-        
-        # Update header
-        modify_doc_content(operation="headers_footers", document_id="abc", section_type="header", content="My Header")
     """
+    operation = payload["operation"]
     logger.info(f"[modify_doc_content] Operation: {operation}, Doc={document_id}")
 
     try:
         if operation == "edit_text":
+            # Extract parameters from payload
+            p = payload  # type: ignore
+            start_index = p.get("start_index")
+            end_index = p.get("end_index")
+            text = p.get("text")
+            bold = p.get("bold")
+            italic = p.get("italic")
+            underline = p.get("underline")
+            font_size = p.get("font_size")
+            font_family = p.get("font_family")
+
             # Existing modify_doc_text logic
             if start_index is None:
                 raise ValueError("'start_index' is required for edit_text operation")
@@ -488,6 +493,12 @@ async def modify_doc_content(
             return f"{operation_summary} in document {document_id}.{text_info} Link: {link}"
 
         elif operation == "find_replace":
+            # Extract parameters from payload
+            p = payload  # type: ignore
+            find_text = p.get("find_text")
+            replace_text = p.get("replace_text")
+            match_case = p.get("match_case", False)
+
             # Existing find_and_replace_doc logic
             if not find_text:
                 raise ValueError("'find_text' is required for find_replace operation")
@@ -514,6 +525,12 @@ async def modify_doc_content(
             return f"Replaced {replacements} occurrence(s) of '{find_text}' with '{replace_text}' in document {document_id}. Link: {link}"
 
         elif operation == "headers_footers":
+            # Extract parameters from payload
+            p = payload  # type: ignore
+            section_type = p.get("section_type")
+            content = p.get("content")
+            header_footer_type = p.get("header_footer_type", "DEFAULT")
+
             # Existing update_doc_headers_footers logic
             if not section_type:
                 raise ValueError("'section_type' is required for headers_footers operation")

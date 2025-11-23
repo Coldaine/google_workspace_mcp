@@ -5,7 +5,7 @@ This module provides MCP tools for interacting with Google Chat API.
 """
 import logging
 import asyncio
-from typing import Optional
+from typing import Literal, Optional
 
 from googleapiclient.errors import HttpError
 
@@ -63,53 +63,120 @@ async def list_spaces(
 
 @server.tool()
 @require_google_service("chat", "chat_read")
-@handle_http_errors("get_messages", service_type="chat")
-async def get_messages(
+@handle_http_errors("get_chat_messages", is_read_only=True, service_type="chat")
+async def get_chat_messages(
     service,
     user_google_email: str,
-    space_id: str,
+    operation: Literal["get", "search"],
+    space_id: Optional[str] = None,
+    query: Optional[str] = None,
     page_size: int = 50,
     order_by: str = "createTime desc"
 ) -> str:
     """
-    Retrieves messages from a Google Chat space.
+    Retrieve or search messages in Google Chat.
 
-    Returns:
-        str: Formatted messages from the specified space.
+    operation: Literal["get", "search"]
+    - get: Fetch recent messages from a space (requires space_id).
+    - search: Find messages by text; search within a space if space_id provided, otherwise across accessible spaces.
+    
+    Examples:
+    - get_chat_messages(..., operation="get", space_id="spaces/AAA", page_size=20)
+    - get_chat_messages(..., operation="search", query="design review", space_id="spaces/AAA")
+    - get_chat_messages(..., operation="search", query="incident", page_size=10)
     """
-    logger.info(f"[get_messages] Space ID: '{space_id}' for user '{user_google_email}'")
+    logger.info(f"[get_chat_messages] Operation={operation}, Space={space_id}, Query={query}")
 
-    # Get space info first
-    space_info = await asyncio.to_thread(
-        service.spaces().get(name=space_id).execute
-    )
-    space_name = space_info.get('displayName', 'Unknown Space')
+    if operation == "get":
+        if not space_id:
+            raise Exception("Operation 'get' requires 'space_id'.")
 
-    # Get messages
-    response = await asyncio.to_thread(
-        service.spaces().messages().list(
-            parent=space_id,
-            pageSize=page_size,
-            orderBy=order_by
-        ).execute
-    )
+        space_info = await asyncio.to_thread(
+            service.spaces().get(name=space_id).execute
+        )
+        space_name = space_info.get('displayName', 'Unknown Space')
 
-    messages = response.get('messages', [])
-    if not messages:
-        return f"No messages found in space '{space_name}' (ID: {space_id})."
+        response = await asyncio.to_thread(
+            service.spaces().messages().list(
+                parent=space_id,
+                pageSize=page_size,
+                orderBy=order_by
+            ).execute
+        )
 
-    output = [f"Messages from '{space_name}' (ID: {space_id}):\n"]
-    for msg in messages:
-        sender = msg.get('sender', {}).get('displayName', 'Unknown Sender')
-        create_time = msg.get('createTime', 'Unknown Time')
-        text_content = msg.get('text', 'No text content')
-        msg_name = msg.get('name', '')
+        messages = response.get('messages', [])
+        if not messages:
+            return f"No messages found in space '{space_name}' (ID: {space_id})."
 
-        output.append(f"[{create_time}] {sender}:")
-        output.append(f"  {text_content}")
-        output.append(f"  (Message ID: {msg_name})\n")
+        output = [f"Messages from '{space_name}' (ID: {space_id}):\n"]
+        for msg in messages:
+            sender = msg.get('sender', {}).get('displayName', 'Unknown Sender')
+            create_time = msg.get('createTime', 'Unknown Time')
+            text_content = msg.get('text', 'No text content')
+            msg_name = msg.get('name', '')
 
-    return "\n".join(output)
+            output.append(f"[{create_time}] {sender}:")
+            output.append(f"  {text_content}")
+            output.append(f"  (Message ID: {msg_name})\n")
+
+        return "\n".join(output)
+
+    if operation == "search":
+        if not query:
+            raise Exception("Operation 'search' requires 'query'.")
+
+        if space_id:
+            response = await asyncio.to_thread(
+                service.spaces().messages().list(
+                    parent=space_id,
+                    pageSize=page_size,
+                    filter=f'text:"{query}"'
+                ).execute
+            )
+            messages = response.get('messages', [])
+            context = f"space '{space_id}'"
+        else:
+            spaces_response = await asyncio.to_thread(
+                service.spaces().list(pageSize=100).execute
+            )
+            spaces = spaces_response.get('spaces', [])
+
+            messages = []
+            for space in spaces[:10]:
+                try:
+                    space_messages = await asyncio.to_thread(
+                        service.spaces().messages().list(
+                            parent=space.get('name'),
+                            pageSize=5,
+                            filter=f'text:"{query}"'
+                        ).execute
+                    )
+                    space_msgs = space_messages.get('messages', [])
+                    for msg in space_msgs:
+                        msg['_space_name'] = space.get('displayName', 'Unknown')
+                    messages.extend(space_msgs)
+                except HttpError:
+                    continue
+            context = "all accessible spaces"
+
+        if not messages:
+            return f"No messages found matching '{query}' in {context}."
+
+        output = [f"Found {len(messages)} messages matching '{query}' in {context}:"]
+        for msg in messages:
+            sender = msg.get('sender', {}).get('displayName', 'Unknown Sender')
+            create_time = msg.get('createTime', 'Unknown Time')
+            text_content = msg.get('text', 'No text content')
+            space_name = msg.get('_space_name', 'Unknown Space')
+
+            if len(text_content) > 100:
+                text_content = text_content[:100] + "..."
+
+            output.append(f"- [{create_time}] {sender} in '{space_name}': {text_content}")
+
+        return "\n".join(output)
+
+    raise Exception("Unsupported operation. Use 'get' or 'search'.")
 
 @server.tool()
 @require_google_service("chat", "chat_write")
@@ -151,76 +218,3 @@ async def send_message(
     msg = f"Message sent to space '{space_id}' by {user_google_email}. Message ID: {message_name}, Time: {create_time}"
     logger.info(f"Successfully sent message to space '{space_id}' by {user_google_email}")
     return msg
-
-@server.tool()
-@require_google_service("chat", "chat_read")
-@handle_http_errors("search_messages", service_type="chat")
-async def search_messages(
-    service,
-    user_google_email: str,
-    query: str,
-    space_id: Optional[str] = None,
-    page_size: int = 25
-) -> str:
-    """
-    Searches for messages in Google Chat spaces by text content.
-
-    Returns:
-        str: A formatted list of messages matching the search query.
-    """
-    logger.info(f"[search_messages] Email={user_google_email}, Query='{query}'")
-
-    # If specific space provided, search within that space
-    if space_id:
-        response = await asyncio.to_thread(
-            service.spaces().messages().list(
-                parent=space_id,
-                pageSize=page_size,
-                filter=f'text:"{query}"'
-            ).execute
-        )
-        messages = response.get('messages', [])
-        context = f"space '{space_id}'"
-    else:
-        # Search across all accessible spaces (this may require iterating through spaces)
-        # For simplicity, we'll search the user's spaces first
-        spaces_response = await asyncio.to_thread(
-            service.spaces().list(pageSize=100).execute
-        )
-        spaces = spaces_response.get('spaces', [])
-
-        messages = []
-        for space in spaces[:10]:  # Limit to first 10 spaces to avoid timeout
-            try:
-                space_messages = await asyncio.to_thread(
-                    service.spaces().messages().list(
-                        parent=space.get('name'),
-                        pageSize=5,
-                        filter=f'text:"{query}"'
-                    ).execute
-                )
-                space_msgs = space_messages.get('messages', [])
-                for msg in space_msgs:
-                    msg['_space_name'] = space.get('displayName', 'Unknown')
-                messages.extend(space_msgs)
-            except HttpError:
-                continue  # Skip spaces we can't access
-        context = "all accessible spaces"
-
-    if not messages:
-        return f"No messages found matching '{query}' in {context}."
-
-    output = [f"Found {len(messages)} messages matching '{query}' in {context}:"]
-    for msg in messages:
-        sender = msg.get('sender', {}).get('displayName', 'Unknown Sender')
-        create_time = msg.get('createTime', 'Unknown Time')
-        text_content = msg.get('text', 'No text content')
-        space_name = msg.get('_space_name', 'Unknown Space')
-
-        # Truncate long messages
-        if len(text_content) > 100:
-            text_content = text_content[:100] + "..."
-
-        output.append(f"- [{create_time}] {sender} in '{space_name}': {text_content}")
-
-    return "\n".join(output)

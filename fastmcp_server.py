@@ -12,7 +12,6 @@ from auth.oauth_config import reload_oauth_config, is_stateless_mode
 from core.log_formatter import EnhancedLogFormatter, configure_file_logging
 from core.utils import check_credentials_directory_permissions
 from core.server import server, set_transport_mode, configure_server_for_http
-from core.tool_registry import set_enabled_tools as set_enabled_tool_names, wrap_server_tool_method, filter_server_tools
 from auth.scopes import set_enabled_tools
 
 def enforce_fastmcp_cloud_defaults():
