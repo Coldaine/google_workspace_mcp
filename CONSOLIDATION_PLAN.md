@@ -279,25 +279,142 @@ Document Operations:
 
 ## Remaining Work
 
-### Phase 2: Data Services (Not Started)
+### 5. Drive Consolidation ✅
 
-#### 5. Drive Consolidation (6 → 4 tools) ⏳
+**File:** `gdrive/drive_tools.py`
 
-**Consolidation:**
-- Keep: `search_drive_files`, `get_drive_file_content`, `create_drive_file`
-- Consolidate permissions: `get_drive_file_permissions` + `check_drive_file_public_access` → `manage_drive_permissions`
-- Remove: `list_drive_items` (duplicate of search with folder filter)
+**Consolidated Tools:**
 
-**Reduction:** -2 tools
+1. **`manage_drive_file`** (consolidates create/update/delete/move/copy)
+   ```python
+   operation: Literal["create", "update", "trash", "delete", "move", "copy"]
+   file_id: Optional[str]  # required for all except create
+   file_name: Optional[str]  # required for create
+   content: Optional[str]
+   folder_id: Optional[str]
+   mime_type: Optional[str]
+   fileUrl: Optional[str]
+   new_name: Optional[str]
+   ```
+
+2. **`manage_drive_permissions`** (consolidates get/check/create/delete)
+   ```python
+   operation: Literal["get", "check_public", "create", "delete"]
+   file_id: Optional[str]
+   file_name: Optional[str]
+   role: Optional[str]
+   type: Optional[str]
+   email_address: Optional[str]
+   permission_id: Optional[str]
+   ```
+
+3. **`search_drive_files`** (unchanged)
+   - Core search functionality
+
+4. **`get_drive_file_content`** (unchanged)
+   - Content retrieval
+
+**Reduction:** 6 → 4 tools (-2 tools)
 
 ---
 
-#### 6. Sheets Consolidation (6 → 4 tools) ⏳
+### 6. Sheets Consolidation ✅
 
-**Consolidation:**
-- `list_spreadsheets` + `get_spreadsheet_info` → `get_spreadsheet_info` (operation: list | get)
-- `create_spreadsheet` + `create_sheet` → `create_spreadsheet` (operation: new_spreadsheet | add_sheet)
-- Keep: `read_sheet_values`, `modify_sheet_values`
+**File:** `gsheets/sheets_tools.py`
+
+**Consolidated Tools:**
+
+1. **`get_spreadsheet_info`** (consolidates list/get)
+   ```python
+   operation: Literal["get", "list"]
+   spreadsheet_id: Optional[str]
+   ```
+
+2. **`create_spreadsheet`** (consolidates create/add_sheet)
+   ```python
+   operation: Literal["create_new", "add_sheet"]
+   title: str
+   sheet_title: Optional[str]
+   ```
+
+3. **`read_sheet_values`** (unchanged)
+4. **`modify_sheet_values`** (unchanged)
+
+**Reduction:** 6 → 4 tools (-2 tools)
+
+---
+
+### 7. Forms Consolidation ✅
+
+**File:** `gforms/forms_tools.py`
+
+**Consolidated Tools:**
+
+1. **`manage_form`** (consolidates get/update)
+   ```python
+   operation: Literal["get", "update_settings"]
+   form_id: str
+   ```
+
+2. **`manage_form_responses`** (consolidates list/get)
+   ```python
+   operation: Literal["list", "get"]
+   form_id: str
+   response_id: Optional[str]
+   ```
+
+3. **`create_form`** (unchanged)
+
+**Reduction:** 5 → 3 tools (-2 tools)
+
+---
+
+### 8. Slides Consolidation ✅
+
+**File:** `gslides/slides_tools.py`
+
+**Consolidated Tools:**
+
+1. **`get_presentation_info`** (consolidates get/page/thumbnail)
+   ```python
+   operation: Literal["presentation", "page", "thumbnail"]
+   presentation_id: str
+   page_object_id: Optional[str]
+   ```
+
+2. **`create_presentation`** (unchanged)
+3. **`batch_update_presentation`** (unchanged)
+
+**Reduction:** 5 → 3 tools (-2 tools)
+
+---
+
+### 9. Chat Consolidation ✅
+
+**File:** `gchat/chat_tools.py`
+
+**Consolidated Tools:**
+
+1. **`get_chat_messages`** (consolidates get/search)
+   ```python
+   operation: Literal["get", "search"]
+   space_id: Optional[str]
+   query: Optional[str]
+   ```
+
+2. **`list_spaces`** (unchanged)
+3. **`send_chat_message`** (unchanged)
+
+**Reduction:** 4 → 3 tools (-1 tool)
+
+---
+
+## Final Status
+
+**Total Tools:** ~45 (Target Met)
+**Consolidation:** Complete across all services.
+**Tool Tiers:** Removed (All tools enabled by default).
+
 
 **Reduction:** -2 tools
 
