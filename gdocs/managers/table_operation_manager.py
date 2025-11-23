@@ -33,6 +33,7 @@ class TableOperationManager:
             service: Google Docs API service instance
         """
         self.service = service
+        self._created_table_index = None  # Track the index where we created the table
         
     async def create_and_populate_table(
         self,
@@ -66,7 +67,8 @@ class TableOperationManager:
         cols = len(table_data[0])
         
         try:
-            # Step 1: Create empty table
+            # Step 1: Create empty table and remember where we put it
+            self._created_table_index = index
             await self._create_empty_table(document_id, index, rows, cols)
             
             # Step 2: Get fresh document structure to find actual cell positions
@@ -172,8 +174,23 @@ class TableOperationManager:
             tables = await self._get_document_tables(document_id)
             if not tables:
                 return False
-                
-            table = tables[-1]  # Use the last table (newly created one)
+            
+            # Find the table we created by matching the start index
+            # The table we created should be at or near the index we specified
+            table = None
+            if self._created_table_index is not None:
+                # Find table that starts at or after our creation index
+                # (may have shifted slightly due to content before it)
+                for t in tables:
+                    if t.get('start_index', -1) >= self._created_table_index:
+                        table = t
+                        break
+            
+            # Fallback to last table if we can't find by index
+            if table is None:
+                table = tables[-1]
+                logger.warning(f"Could not find table at index {self._created_table_index}, using last table")
+            
             cells = table.get('cells', [])
             
             # Bounds checking

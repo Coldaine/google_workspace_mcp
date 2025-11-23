@@ -219,8 +219,8 @@ def create_insert_page_break_request(index: int) -> Dict[str, Any]:
 def create_insert_image_request(
     index: int, 
     image_uri: str,
-    width: int = None,
-    height: int = None
+    width: Optional[int] = None,
+    height: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Create an insertInlineImage request for Google Docs API.
@@ -228,8 +228,8 @@ def create_insert_image_request(
     Args:
         index: Position to insert image
         image_uri: URI of the image (Drive URL or public URL)
-        width: Image width in points
-        height: Image height in points
+        width: Image width in points (optional, None for auto-size)
+        height: Image height in points (optional, None for auto-size)
     
     Returns:
         Dictionary representing the insertInlineImage request

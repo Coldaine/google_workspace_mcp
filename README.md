@@ -463,6 +463,69 @@ export GOOGLE_PSE_ENGINE_ID=\
 
 </details>
 
+---
+
+## <span style="color:#adbcbc">Secret Management (Bitwarden Architecture)</span>
+
+This repository is structured so that **no real secrets are ever committed**. All sensitive values (Google OAuth credentials, API keys) are expected to come from **Bitwarden Secrets Manager (BWSM)** or ephemeral environment variables.
+
+### Source of Truth
+| Layer | Purpose |
+|-------|---------|
+| Bitwarden Item (record) | Stores actual secret value (client ID / client secret) |
+| Mapping File (`secrets/bitwarden_map.json`) | Declares which env var maps to which Bitwarden item + field |
+| Runtime Loader (`scripts/bitwarden_env_loader.py`) | Fetches items via CLI and emits `export` lines |
+| Shell Helpers (`scripts/load-secrets.sh` / `scripts/load-secrets.ps1`) | Convenience wrappers to populate current session |
+| Ansible Role (`ansible/roles/secret-management`) | CI/CD / deployment rendering to `.env.generated` |
+
+### Bitwarden Setup Steps
+1. Install Bitwarden CLI: https://bitwarden.com/help/cli/
+2. Login once: `bw login` (or configure API key method)
+3. Unlock and export session: `export BW_SESSION="$(bw unlock --raw)"` (PowerShell: `$env:BW_SESSION = (bw unlock --raw)`)
+4. Create two items (or fields within an item) for:
+   - `GOOGLE_OAUTH_CLIENT_ID`
+   - `GOOGLE_OAUTH_CLIENT_SECRET`
+5. Update `secrets/bitwarden_map.json` replacing the placeholder `REPLACE-WITH-*` item IDs with your item UUIDs.
+
+### Local Loading (POSIX)
+```bash
+export BW_SESSION="$(bw unlock --raw)"
+source ./scripts/load-secrets.sh
+python main.py --transport streamable-http
+```
+
+### Local Loading (PowerShell)
+```pwsh
+$env:BW_SESSION = (bw unlock --raw)
+./scripts/load-secrets.ps1
+python .\main.py --transport streamable-http
+```
+
+### CI/CD via Ansible (Skeleton)
+```bash
+ansible-playbook ansible/deploy-secret-management.yml
+cat secrets/.env.generated  # Contains populated vars (DO NOT COMMIT)
+```
+
+### Helm Deployment
+Inject your secrets into the Kubernetes Secret via standard Helm value overrides (or use External Secrets operator referencing Bitwarden later):
+```bash
+helm upgrade --install workspace-mcp ./helm-chart/workspace-mcp \
+  --set secrets.googleOAuth.clientId="$GOOGLE_OAUTH_CLIENT_ID" \
+  --set secrets.googleOAuth.clientSecret="$GOOGLE_OAUTH_CLIENT_SECRET"
+```
+
+### Safety Controls
+- `.gitignore` ensures `.env`, `client_secret.json`, generated env files, and pause flags are never committed.
+- If you previously used a `client_secret.json` file, keep it untracked; prefer env variables.
+- Pause mode will not expose secrets; health endpoint returns `paused` status only.
+
+### Future Migration (Optional)
+Design allows straightforward mapping to other secret backends (e.g., Infisical) by replacing loader scripts; keep `bitwarden_map.json` as abstraction layer.
+
+---
+*Secrets architecture: verified and aligned with Bitwarden-centric model. Real values remain external; repository holds only mappings and tooling.*
+
 </td>
 </tr>
 </table>

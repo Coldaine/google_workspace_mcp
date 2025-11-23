@@ -108,7 +108,7 @@
       "title": "Google OAuth Redirect URI",
       "description": "OAuth 2.0 redirect URI for authentication callback",
       "required": false,
-      "default": "http://localhost:8000/oauth2callback"
+      "default": "http://localhost:4100/oauth2callback"
     },
     "GOOGLE_CLIENT_SECRET_PATH": {
       "type": "file",
@@ -134,7 +134,7 @@
       "title": "Workspace MCP Port",
       "description": "Port number for the MCP server to listen on",
       "required": false,
-      "default": 8000
+      "default": 4100
     },
     "WORKSPACE_EXTERNAL_URL": {
       "type": "string",
