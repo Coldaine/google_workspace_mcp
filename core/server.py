@@ -16,6 +16,7 @@ from auth.mcp_session_middleware import MCPSessionMiddleware
 from auth.oauth_responses import create_error_response, create_success_response, create_server_error_response
 from auth.auth_info_middleware import AuthInfoMiddleware
 from auth.scopes import SCOPES, get_current_scopes # noqa
+from core.pause_middleware import PauseMiddleware, is_paused
 from core.config import (
     USER_GOOGLE_EMAIL,
     get_transport_mode,
@@ -40,10 +41,13 @@ class SecureFastMCP(FastMCP):
         # Add middleware in order (first added = outermost layer)
         # Session Management - extracts session info for MCP context
         app.user_middleware.insert(0, session_middleware)
+        
+        # Add Pause Middleware - checks for pause state before other processing
+        app.user_middleware.insert(0, Middleware(PauseMiddleware))
 
         # Rebuild middleware stack
         app.middleware_stack = app.build_middleware_stack()
-        logger.info("Added middleware stack: Session Management")
+        logger.info("Added middleware stack: Session Management and Pause Middleware")
         return app
 
 server = SecureFastMCP(
@@ -149,8 +153,9 @@ async def health_check(request: Request):
         version = metadata.version("workspace-mcp")
     except metadata.PackageNotFoundError:
         version = "dev"
+    status = "paused" if is_paused() else "healthy"
     return JSONResponse({
-        "status": "healthy",
+        "status": status,
         "service": "workspace-mcp",
         "version": version,
         "transport": get_transport_mode()

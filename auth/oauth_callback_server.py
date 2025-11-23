@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 class MinimalOAuthServer:
     """
     Minimal HTTP server for OAuth callbacks in stdio mode.
-    Only starts when needed and uses the same port (8000) as streamable-http mode.
+    Only starts when needed and uses the same port (4100) as streamable-http mode.
     """
 
-    def __init__(self, port: int = 8000, base_uri: str = "http://localhost"):
+    def __init__(self, port: int = 4100, base_uri: str = "http://localhost"):
         self.port = port
         self.base_uri = base_uri
         self.app = FastAPI()
@@ -179,7 +179,7 @@ class MinimalOAuthServer:
 # Global instance for stdio mode
 _minimal_oauth_server: Optional[MinimalOAuthServer] = None
 
-def ensure_oauth_callback_available(transport_mode: str = "stdio", port: int = 8000, base_uri: str = "http://localhost") -> tuple[bool, str]:
+def ensure_oauth_callback_available(transport_mode: str = "stdio", port: int = 4100, base_uri: str = "http://localhost") -> tuple[bool, str]:
     """
     Ensure OAuth callback endpoint is available for the given transport mode.
 
@@ -188,7 +188,7 @@ def ensure_oauth_callback_available(transport_mode: str = "stdio", port: int = 8
 
     Args:
         transport_mode: "stdio" or "streamable-http"
-        port: Port number (default 8000)
+        port: Port number (default 4100)
         base_uri: Base URI (default "http://localhost")
 
     Returns:

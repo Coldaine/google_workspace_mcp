@@ -104,3 +104,14 @@ exclude = ["tests*", "docs*", "build", "dist"]
 
 [tool.setuptools.package-data]
 core = ["tool_tiers.yaml"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
