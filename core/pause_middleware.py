@@ -34,11 +34,7 @@ class PauseMiddleware(BaseHTTPMiddleware):
             path = request.url.path
             # Allow health endpoint to report paused state differently
             if path == "/health":
-                response = await call_next(request)
-                try:
-                    data = response.body
-                except Exception:
-                    data = None
+                await call_next(request)
                 # Replace health response with paused indicator
                 return JSONResponse({"status": "paused", "service": "workspace-mcp"}, status_code=200)
             return JSONResponse({"status": "paused", "message": "Service temporarily paused"}, status_code=503)
