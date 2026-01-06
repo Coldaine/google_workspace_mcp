@@ -1273,7 +1273,7 @@ Validations:
 
 ### Desktop OAuth Localhost Redirect URI Validation
 
-**Validated by:** Patrick MacLyman ([@Coldaine](https://github.com/Coldaine))
+**Validated by:** [@Coldaine](https://github.com/Coldaine)
 **Date:** 2026-01-05
 
 **Finding:** Google Desktop OAuth clients support `http://localhost:<port>` redirect URIs without requiring explicit configuration in Google Cloud Console. This is distinct from Web Application clients which require redirect URIs to be pre-registered.
