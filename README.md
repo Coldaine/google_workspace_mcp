@@ -1271,6 +1271,23 @@ Validations:
 
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/eebbc4a6-0f8c-41b2-ace8-038e5516dba0)
 
+### Desktop OAuth Localhost Redirect URI Validation
+
+**Validated by:** Patrick MacLyman ([@Coldaine](https://github.com/Coldaine))
+**Date:** 2026-01-05
+
+**Finding:** Google Desktop OAuth clients support `http://localhost:<port>` redirect URIs without requiring explicit configuration in Google Cloud Console. This is distinct from Web Application clients which require redirect URIs to be pre-registered.
+
+**Key Points:**
+- Desktop app client types do **not** require redirect URIs to be configured in the console
+- Loopback addresses (`http://127.0.0.1:<port>`, `http://localhost:<port>`) are implicitly allowed
+- This flow remains supported for Desktop apps (only deprecated for Android/iOS/Chrome app clients)
+
+**Official Documentation:**
+- [OAuth 2.0 for iOS & Desktop Apps](https://developers.google.com/identity/protocols/oauth2/native-app)
+- [Loopback IP Address Migration Guide](https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration)
+- [Manage OAuth Clients - Google Cloud Help](https://support.google.com/cloud/answer/15549257?hl=en)
+
 
 <div align="center">
 <img width="842" alt="Batch Emails" src="https://github.com/user-attachments/assets/0876c789-7bcc-4414-a144-6c3f0aaffc06" />
