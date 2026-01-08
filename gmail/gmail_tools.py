@@ -1293,8 +1293,14 @@ async def modify_gmail_labels(
 ) -> str:
     """
     Adds or removes labels from Gmail messages (single or batch).
-    To archive an email, remove the INBOX label.
-    To delete an email, add the TRASH label.
+
+    Common operations using system labels:
+    - Archive: Remove INBOX label (message stays in All Mail)
+    - Mark as spam: Add SPAM label
+    - Mark as important: Add IMPORTANT label
+    - Star: Add STARRED label
+    - Mark as read: Remove UNREAD label
+    - Mark as unread: Add UNREAD label
 
     Args:
         user_google_email (str): The user's Google email address. Required.
@@ -1308,19 +1314,47 @@ async def modify_gmail_labels(
         str: Confirmation message of the label changes applied.
 
     Examples:
-        # Modify labels on single message
+        # Archive a message (remove from inbox)
         modify_gmail_labels(
             operation="single",
             message_id="msg123",
-            add_label_ids=["Label_1"],
             remove_label_ids=["INBOX"]
         )
 
-        # Modify labels on multiple messages
+        # Mark as spam
+        modify_gmail_labels(
+            operation="single",
+            message_id="msg123",
+            add_label_ids=["SPAM"]
+        )
+
+        # Star and mark as important
+        modify_gmail_labels(
+            operation="single",
+            message_id="msg123",
+            add_label_ids=["STARRED", "IMPORTANT"]
+        )
+
+        # Mark as read
+        modify_gmail_labels(
+            operation="single",
+            message_id="msg123",
+            remove_label_ids=["UNREAD"]
+        )
+
+        # Archive multiple messages (batch operation)
         modify_gmail_labels(
             operation="batch",
-            message_ids=["msg1", "msg2"],
-            add_label_ids=["Label_1"]
+            message_ids=["msg1", "msg2", "msg3"],
+            remove_label_ids=["INBOX"]
+        )
+
+        # Add custom label and remove from inbox
+        modify_gmail_labels(
+            operation="single",
+            message_id="msg123",
+            add_label_ids=["Label_12345"],
+            remove_label_ids=["INBOX"]
         )
     """
     logger.info(
