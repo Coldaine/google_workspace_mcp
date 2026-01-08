@@ -1179,6 +1179,141 @@ async def manage_gmail_label(
 
 
 @server.tool()
+@handle_http_errors("manage_gmail_message", service_type="gmail")
+@require_google_service("gmail", GMAIL_MODIFY_SCOPE)
+async def manage_gmail_message(
+    service,
+    user_google_email: str,
+    action: Literal["trash", "untrash", "delete", "mark_spam", "mark_not_spam", "mark_important", "unmark_important", "star", "unstar"],
+    target_type: Literal["message", "thread"] = "message",
+    message_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+) -> str:
+    """
+    Manages Gmail messages and threads: trash, untrash, delete, or apply common labels (spam, important, star).
+
+    Args:
+        user_google_email (str): The user's Google email address. Required.
+        action (Literal): Action to perform:
+            - "trash": Move to trash (recoverable within 30 days)
+            - "untrash": Restore from trash
+            - "delete": Permanently delete (WARNING: cannot be undone!)
+            - "mark_spam": Mark as spam
+            - "mark_not_spam": Remove spam label
+            - "mark_important": Mark as important
+            - "unmark_important": Remove important label
+            - "star": Add star
+            - "unstar": Remove star
+        target_type (Literal["message", "thread"]): Whether to operate on a message or thread. Defaults to "message".
+        message_id (Optional[str]): Message ID (required when target_type="message").
+        thread_id (Optional[str]): Thread ID (required when target_type="thread").
+
+    Returns:
+        str: Confirmation message of the action performed.
+
+    Examples:
+        # Move message to trash
+        manage_gmail_message(action="trash", target_type="message", message_id="msg123")
+
+        # Restore message from trash
+        manage_gmail_message(action="untrash", target_type="message", message_id="msg123")
+
+        # Permanently delete a message
+        manage_gmail_message(action="delete", target_type="message", message_id="msg123")
+
+        # Mark message as spam
+        manage_gmail_message(action="mark_spam", target_type="message", message_id="msg123")
+
+        # Star a message
+        manage_gmail_message(action="star", target_type="message", message_id="msg123")
+
+        # Trash entire thread
+        manage_gmail_message(action="trash", target_type="thread", thread_id="thread123")
+    """
+    logger.info(
+        f"[manage_gmail_message] Action: {action}, Target: {target_type}, Email: '{user_google_email}'"
+    )
+
+    # Validate inputs
+    if target_type == "message" and not message_id:
+        raise ValueError("'message_id' is required when target_type='message'")
+    if target_type == "thread" and not thread_id:
+        raise ValueError("'thread_id' is required when target_type='thread'")
+
+    # Label-based actions (spam, important, star)
+    label_actions = {
+        "mark_spam": {"add": ["SPAM"], "remove": []},
+        "mark_not_spam": {"add": [], "remove": ["SPAM"]},
+        "mark_important": {"add": ["IMPORTANT"], "remove": []},
+        "unmark_important": {"add": [], "remove": ["IMPORTANT"]},
+        "star": {"add": ["STARRED"], "remove": []},
+        "unstar": {"add": [], "remove": ["STARRED"]},
+    }
+
+    if action in label_actions:
+        # Use modify API for label-based actions
+        label_changes = label_actions[action]
+        body = {}
+        if label_changes["add"]:
+            body["addLabelIds"] = label_changes["add"]
+        if label_changes["remove"]:
+            body["removeLabelIds"] = label_changes["remove"]
+
+        if target_type == "message":
+            await asyncio.to_thread(
+                service.users().messages().modify(userId="me", id=message_id, body=body).execute
+            )
+            action_desc = action.replace("_", " ").title()
+            return f"Message {action_desc} successfully!\nMessage ID: {message_id}"
+        else:  # thread
+            await asyncio.to_thread(
+                service.users().threads().modify(userId="me", id=thread_id, body=body).execute
+            )
+            action_desc = action.replace("_", " ").title()
+            return f"Thread {action_desc} successfully!\nThread ID: {thread_id}"
+
+    # Trash/untrash/delete actions
+    elif action == "trash":
+        if target_type == "message":
+            await asyncio.to_thread(
+                service.users().messages().trash(userId="me", id=message_id).execute
+            )
+            return f"Message moved to trash successfully!\nMessage ID: {message_id}\nNote: Messages in trash are permanently deleted after 30 days."
+        else:  # thread
+            await asyncio.to_thread(
+                service.users().threads().trash(userId="me", id=thread_id).execute
+            )
+            return f"Thread moved to trash successfully!\nThread ID: {thread_id}\nNote: Threads in trash are permanently deleted after 30 days."
+
+    elif action == "untrash":
+        if target_type == "message":
+            await asyncio.to_thread(
+                service.users().messages().untrash(userId="me", id=message_id).execute
+            )
+            return f"Message restored from trash successfully!\nMessage ID: {message_id}"
+        else:  # thread
+            await asyncio.to_thread(
+                service.users().threads().untrash(userId="me", id=thread_id).execute
+            )
+            return f"Thread restored from trash successfully!\nThread ID: {thread_id}"
+
+    elif action == "delete":
+        if target_type == "message":
+            await asyncio.to_thread(
+                service.users().messages().delete(userId="me", id=message_id).execute
+            )
+            return f"⚠️ Message PERMANENTLY deleted!\nMessage ID: {message_id}\nWARNING: This action cannot be undone."
+        else:  # thread
+            await asyncio.to_thread(
+                service.users().threads().delete(userId="me", id=thread_id).execute
+            )
+            return f"⚠️ Thread PERMANENTLY deleted!\nThread ID: {thread_id}\nWARNING: This action cannot be undone."
+
+    else:
+        raise ValueError(f"Invalid action: {action}")
+
+
+@server.tool()
 @handle_http_errors("modify_gmail_labels", service_type="gmail")
 @require_google_service("gmail", GMAIL_MODIFY_SCOPE)
 async def modify_gmail_labels(
