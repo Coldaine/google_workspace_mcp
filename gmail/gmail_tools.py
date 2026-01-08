@@ -1184,26 +1184,22 @@ async def manage_gmail_label(
 async def manage_gmail_message(
     service,
     user_google_email: str,
-    action: Literal["trash", "untrash", "delete", "mark_spam", "mark_not_spam", "mark_important", "unmark_important", "star", "unstar"],
+    action: Literal["trash", "untrash", "delete"],
     target_type: Literal["message", "thread"] = "message",
     message_id: Optional[str] = None,
     thread_id: Optional[str] = None,
 ) -> str:
     """
-    Manages Gmail messages and threads: trash, untrash, delete, or apply common labels (spam, important, star).
+    Manages Gmail message/thread lifecycle: trash, untrash, and permanent delete operations.
+
+    Note: For label operations (archive, spam, important, star, read/unread), use modify_gmail_labels instead.
 
     Args:
         user_google_email (str): The user's Google email address. Required.
-        action (Literal): Action to perform:
+        action (Literal["trash", "untrash", "delete"]): Action to perform:
             - "trash": Move to trash (recoverable within 30 days)
             - "untrash": Restore from trash
             - "delete": Permanently delete (WARNING: cannot be undone!)
-            - "mark_spam": Mark as spam
-            - "mark_not_spam": Remove spam label
-            - "mark_important": Mark as important
-            - "unmark_important": Remove important label
-            - "star": Add star
-            - "unstar": Remove star
         target_type (Literal["message", "thread"]): Whether to operate on a message or thread. Defaults to "message".
         message_id (Optional[str]): Message ID (required when target_type="message").
         thread_id (Optional[str]): Thread ID (required when target_type="thread").
@@ -1218,17 +1214,19 @@ async def manage_gmail_message(
         # Restore message from trash
         manage_gmail_message(action="untrash", target_type="message", message_id="msg123")
 
-        # Permanently delete a message
+        # Permanently delete a message (use with caution!)
         manage_gmail_message(action="delete", target_type="message", message_id="msg123")
-
-        # Mark message as spam
-        manage_gmail_message(action="mark_spam", target_type="message", message_id="msg123")
-
-        # Star a message
-        manage_gmail_message(action="star", target_type="message", message_id="msg123")
 
         # Trash entire thread
         manage_gmail_message(action="trash", target_type="thread", thread_id="thread123")
+
+    Note:
+        For other operations, use modify_gmail_labels:
+        - Archive: modify_gmail_labels(operation="single", message_id="...", remove_label_ids=["INBOX"])
+        - Mark spam: modify_gmail_labels(operation="single", message_id="...", add_label_ids=["SPAM"])
+        - Star: modify_gmail_labels(operation="single", message_id="...", add_label_ids=["STARRED"])
+        - Mark important: modify_gmail_labels(operation="single", message_id="...", add_label_ids=["IMPORTANT"])
+        - Mark read: modify_gmail_labels(operation="single", message_id="...", remove_label_ids=["UNREAD"])
     """
     logger.info(
         f"[manage_gmail_message] Action: {action}, Target: {target_type}, Email: '{user_google_email}'"
@@ -1240,40 +1238,8 @@ async def manage_gmail_message(
     if target_type == "thread" and not thread_id:
         raise ValueError("'thread_id' is required when target_type='thread'")
 
-    # Label-based actions (spam, important, star)
-    label_actions = {
-        "mark_spam": {"add": ["SPAM"], "remove": []},
-        "mark_not_spam": {"add": [], "remove": ["SPAM"]},
-        "mark_important": {"add": ["IMPORTANT"], "remove": []},
-        "unmark_important": {"add": [], "remove": ["IMPORTANT"]},
-        "star": {"add": ["STARRED"], "remove": []},
-        "unstar": {"add": [], "remove": ["STARRED"]},
-    }
-
-    if action in label_actions:
-        # Use modify API for label-based actions
-        label_changes = label_actions[action]
-        body = {}
-        if label_changes["add"]:
-            body["addLabelIds"] = label_changes["add"]
-        if label_changes["remove"]:
-            body["removeLabelIds"] = label_changes["remove"]
-
-        if target_type == "message":
-            await asyncio.to_thread(
-                service.users().messages().modify(userId="me", id=message_id, body=body).execute
-            )
-            action_desc = action.replace("_", " ").title()
-            return f"Message {action_desc} successfully!\nMessage ID: {message_id}"
-        else:  # thread
-            await asyncio.to_thread(
-                service.users().threads().modify(userId="me", id=thread_id, body=body).execute
-            )
-            action_desc = action.replace("_", " ").title()
-            return f"Thread {action_desc} successfully!\nThread ID: {thread_id}"
-
-    # Trash/untrash/delete actions
-    elif action == "trash":
+    # Trash/untrash/delete actions use dedicated API endpoints
+    if action == "trash":
         if target_type == "message":
             await asyncio.to_thread(
                 service.users().messages().trash(userId="me", id=message_id).execute

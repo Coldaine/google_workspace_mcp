@@ -714,8 +714,8 @@ cp .env.oauth21 .env
 | `search_gmail_messages` | **Core** | Search with Gmail operators |
 | `get_gmail_content` | **Core** | Retrieve messages, threads, or attachments |
 | `send_gmail_message` | **Core** | Send emails with threading support |
-| `manage_gmail_message` | **Core** | Trash, delete, mark spam/important/star |
-| `modify_gmail_labels` | Extended | Modify message labels (single/batch) |
+| `manage_gmail_message` | **Core** | Trash/untrash/delete messages & threads |
+| `modify_gmail_labels` | Extended | Archive, spam, star, read, labels (single/batch) |
 | `manage_gmail_label` | Extended | Create/update/delete labels |
 | `draft_gmail_message` | Extended | Create drafts with threading |
 
